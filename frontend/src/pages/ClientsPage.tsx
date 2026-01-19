@@ -115,6 +115,12 @@ export default function ClientsPage() {
 
   function setField<K extends keyof typeof form>(k: K, v: (typeof form)[K]) {
     setForm((prev) => ({ ...prev, [k]: v }))
+    setFieldErrors((prev) => {
+      if (!prev[k as string]) return prev
+      const next = { ...prev }
+      delete next[k as string]
+      return next
+    })
   }
 
   function normalizePayload() {
@@ -135,7 +141,53 @@ export default function ClientsPage() {
     setFieldErrors(next)
   }
 
+  function validateForm() {
+    const errors: Record<string, string> = {}
+    const emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/
+
+    if (!form.full_name.trim()) errors.full_name = 'Full name is required.'
+    if (!form.date_of_birth) {
+      errors.date_of_birth = 'Date of birth is required.'
+    } else if (Number.isNaN(new Date(form.date_of_birth).getTime())) {
+      errors.date_of_birth = 'Date of birth must be a valid date.'
+    }
+    if (!form.email.trim()) {
+      errors.email = 'Email is required.'
+    } else if (!emailRegex.test(form.email.trim())) {
+      errors.email = 'Email must be valid.'
+    }
+
+    if (form.age !== '' && form.age !== null) {
+      const ageValue = Number(form.age)
+      if (!Number.isFinite(ageValue) || !Number.isInteger(ageValue)) {
+        errors.age = 'Age must be a whole number.'
+      } else if (ageValue < 1 || ageValue > 99) {
+        errors.age = 'Age must be between 1 and 99.'
+      } else if (form.date_of_birth && !errors.date_of_birth) {
+        const dob = new Date(form.date_of_birth)
+        const today = new Date()
+        let calculated = today.getFullYear() - dob.getFullYear()
+        const monthDiff = today.getMonth() - dob.getMonth()
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+          calculated -= 1
+        }
+        if (calculated !== ageValue) {
+          errors.age = `Age does not match date of birth (expected ${calculated}).`
+        }
+      }
+    }
+
+    if (!form.person_type) errors.person_type = 'Person type is required.'
+
+    return errors
+  }
+
   async function submit() {
+    const errors = validateForm()
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors)
+      return
+    }
     setSaving(true)
     setFieldErrors({})
     try {

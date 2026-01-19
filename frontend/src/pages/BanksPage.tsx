@@ -106,7 +106,21 @@ export default function BanksPage() {
     setFieldErrors(mapped)
   }
 
+  function validateForm() {
+    const errors: Record<string, string> = {}
+    if (!form.name.trim()) errors.name = 'Name is required.'
+    if (form.name.trim().length > 255) errors.name = 'Name must be 255 characters or less.'
+    if (!form.bank_type) errors.bank_type = 'Type is required.'
+    if (form.address.trim().length > 255) errors.address = 'Address must be 255 characters or less.'
+    return errors
+  }
+
   async function submit() {
+    const errors = validateForm()
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors)
+      return
+    }
     setSaving(true)
     setError(null)
     setFieldErrors({})

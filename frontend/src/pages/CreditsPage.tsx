@@ -122,6 +122,12 @@ export default function CreditsPage() {
 
   function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((p) => ({ ...p, [key]: value }))
+    setFieldErrors((prev) => {
+      if (!prev[key as string]) return prev
+      const next = { ...prev }
+      delete next[key as string]
+      return next
+    })
   }
 
   function mapFieldErrors(data: any) {
@@ -135,7 +141,37 @@ export default function CreditsPage() {
     return mapped
   }
 
+  function validateForm() {
+    const errors: Record<string, string> = {}
+    if (!form.client) errors.client = 'Client is required.'
+    if (!form.description.trim()) errors.description = 'Description is required.'
+    if (form.description.trim().length > 255) errors.description = 'Description must be 255 characters or less.'
+
+    const minValue = form.min_payment === '' ? NaN : Number(form.min_payment)
+    const maxValue = form.max_payment === '' ? NaN : Number(form.max_payment)
+    if (!Number.isFinite(minValue)) errors.min_payment = 'Min payment must be a valid number.'
+    if (!Number.isFinite(maxValue)) errors.max_payment = 'Max payment must be a valid number.'
+    if (Number.isFinite(minValue) && minValue < 0) errors.min_payment = 'Min payment cannot be negative.'
+    if (Number.isFinite(maxValue) && maxValue < 0) errors.max_payment = 'Max payment cannot be negative.'
+    if (Number.isFinite(minValue) && Number.isFinite(maxValue) && minValue > maxValue) {
+      errors.min_payment = 'Min payment must be less than or equal to max payment.'
+    }
+
+    if (!form.term_months || Number(form.term_months) < 1) {
+      errors.term_months = 'Term must be at least 1 month.'
+    }
+    if (!form.bank) errors.bank = 'Bank is required.'
+    if (!form.credit_type) errors.credit_type = 'Credit type is required.'
+
+    return errors
+  }
+
   async function submit() {
+    const errors = validateForm()
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors)
+      return
+    }
     setSaving(true)
     setFieldErrors({})
     try {
