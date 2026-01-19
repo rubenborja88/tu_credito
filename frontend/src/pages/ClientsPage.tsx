@@ -143,7 +143,7 @@ export default function ClientsPage() {
 
   function validateForm() {
     const errors: Record<string, string> = {}
-    const emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
     if (!form.full_name.trim()) errors.full_name = 'Full name is required.'
     if (!form.date_of_birth) {
