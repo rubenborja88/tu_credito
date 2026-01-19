@@ -1,0 +1,32 @@
+{
+  "name": "tu-credito-frontend",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 5173",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0 --port 5173",
+    "lint": "echo \"(lint not configured)\"",
+    "generate:api": "openapi-typescript http://localhost:8001/v1/schema/ -o src/api/schema.d.ts"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.11.4",
+    "@emotion/styled": "^11.11.5",
+    "@mui/icons-material": "^5.15.20",
+    "@mui/material": "^5.15.20",
+    "axios": "^1.6.8",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.2"
+  },
+  "devDependencies": {
+    "@nodelib/fs.scandir": "^4.0.1",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "openapi-typescript": "^6.7.5",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.2"
+  }
+}
