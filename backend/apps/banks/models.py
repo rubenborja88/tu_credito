@@ -6,7 +6,7 @@ class Bank(models.Model):
         PRIVATE = 'PRIVATE', 'Private'
         GOVERNMENT = 'GOVERNMENT', 'Government'
 
-    name = models.CharField(max_length=255)
+    name = models.CharField(max_length=255, unique=True)
     bank_type = models.CharField(max_length=32, choices=BankType.choices)
     address = models.CharField(max_length=255, blank=True)
 

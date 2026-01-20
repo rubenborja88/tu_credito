@@ -155,18 +155,6 @@ SPECTACULAR_SETTINGS = {
 EMAIL_BACKEND = os.getenv('DJANGO_EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'no-reply@tu-credito.local')
 
-# Basic CSP (per requirement)
-# CONTENT_SECURITY_POLICY = {
-#     "DIRECTIVES": {
-#         "default-src": ("'self'",),
-#         "style-src": ("'self'", "'unsafe-inline'"),
-#         "script-src": ("'self'",),
-#         "img-src": ("'self'", "data:"),
-#         "font-src": ("'self'", "data:"),
-#         "connect-src": ("'self'",),
-#     }
-# }
-
 # Additional security
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = 'DENY'

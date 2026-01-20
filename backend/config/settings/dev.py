@@ -8,11 +8,6 @@ ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
 # DEV: Swagger available
 # =========================
 
-# Allow swagger/redoc access during development
-REST_FRAMEWORK['DEFAULT_PERMISSION_CLASSES'] = (
-    'rest_framework.permissions.AllowAny',
-)
-
 # =========================
 # DEV: Relax CSP for Swagger UI
 # =========================

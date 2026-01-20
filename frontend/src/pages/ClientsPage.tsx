@@ -396,7 +396,7 @@ export default function ClientsPage() {
         onClose={() => setSnack(null)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
-        {snack ? <Alert severity={snack.type}>{snack.message}</Alert> : <></>}
+        {snack ? <Alert severity={snack.type}>{snack.message}</Alert> : undefined}
       </Snackbar>
     </Box>
   )

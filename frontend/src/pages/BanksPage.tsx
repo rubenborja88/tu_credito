@@ -56,7 +56,7 @@ export default function BanksPage() {
     setError(null)
     try {
       const data = await listBanks()
-      setRows(data)
+      setRows(data.results)
     } catch (e: any) {
       setError(e?.message || 'Failed to load banks.')
     } finally {
@@ -256,7 +256,7 @@ export default function BanksPage() {
         onClose={() => setSnack(null)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
-        {snack ? <Alert severity={snack.type}>{snack.message}</Alert> : null}
+        {snack ? <Alert severity={snack.type}>{snack.message}</Alert> : undefined}
       </Snackbar>
     </Box>
   )
