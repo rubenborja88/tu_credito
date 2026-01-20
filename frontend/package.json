@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0 --port 5173",
     "lint": "echo \"(lint not configured)\"",
-    "generate:api": "openapi-typescript http://localhost:8001/v1/schema/ -o src/api/schema.d.ts"
+    "generate:api": "node -e \"const { execFileSync } = require('node:child_process'); const url = process.env.API_SCHEMA_URL || 'http://localhost:8001'; execFileSync('openapi-typescript', [url + '/v1/schema/', '-o', 'src/api/schema.d.ts'], { stdio: 'inherit' });\""
   },
   "dependencies": {
     "@emotion/react": "^11.11.4",
