@@ -92,11 +92,17 @@ npm run generate:api
 This writes to `frontend/src/api/schema.d.ts`.
 
 ## Tests (backend)
+I wrote tests only for clients.
 
 ```bash
 cd backend
 pytest
 ```
+
+## AI Usage
+
+I used AI for creating frontend components.
+
 
 
 ## API Documentation (Swagger)
