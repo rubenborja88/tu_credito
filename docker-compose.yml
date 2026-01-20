@@ -3,19 +3,9 @@ services:
     build: ./backend
     ports:
       - "8001:8001"
-    environment:
-      DJANGO_SETTINGS_MODULE: config.settings.dev
-      DB_ENGINE: postgres
-      POSTGRES_DB: tu_credito
-      POSTGRES_USER: tu_credito
-      POSTGRES_PASSWORD: tu_credito
-      POSTGRES_HOST: db
-      POSTGRES_PORT: "5432"
-      DJANGO_DEBUG: "1"
-      DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1,backend"
-      DJANGO_SUPERUSER_USERNAME: admin
-      DJANGO_SUPERUSER_PASSWORD: admin12345
-      DJANGO_SUPERUSER_EMAIL: admin@example.com
+    env_file:
+      - .env.example
+      - .env
     depends_on:
       - db
 
@@ -26,14 +16,14 @@ services:
     environment:
       VITE_API_BASE_URL: "http://localhost:8001/v1"
     depends_on:
-      - backend
+      backend:
+        condition: service_started
 
   db:
     image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: tu_credito
-      POSTGRES_USER: tu_credito
-      POSTGRES_PASSWORD: tu_credito
+    env_file:
+      - .env.example
+      - .env
     volumes:
       - postgres_data:/var/lib/postgresql/data
 

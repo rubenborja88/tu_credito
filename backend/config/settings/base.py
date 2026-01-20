@@ -78,27 +78,17 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
-# Database: SQLite by default (per your requirement). Optional PostgreSQL via env.
-DB_ENGINE = os.getenv('DB_ENGINE', 'sqlite')
-
-if DB_ENGINE == 'postgres':
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': os.getenv('POSTGRES_DB', 'tu_credito'),
-            'USER': os.getenv('POSTGRES_USER', 'tu_credito'),
-            'PASSWORD': os.getenv('POSTGRES_PASSWORD', 'tu_credito'),
-            'HOST': os.getenv('POSTGRES_HOST', 'db'),
-            'PORT': os.getenv('POSTGRES_PORT', '5432'),
-        }
+# Database: PostgreSQL (configured via environment).
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.getenv('POSTGRES_DB', 'tu_credito'),
+        'USER': os.getenv('POSTGRES_USER', 'tu_credito'),
+        'PASSWORD': os.getenv('POSTGRES_PASSWORD', 'tu_credito'),
+        'HOST': os.getenv('POSTGRES_HOST', 'db'),
+        'PORT': os.getenv('POSTGRES_PORT', '5432'),
     }
-else:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': os.getenv('SQLITE_PATH', str(BASE_DIR / 'db.sqlite3')),
-        }
-    }
+}
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},

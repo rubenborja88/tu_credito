@@ -4,7 +4,7 @@ This repository contains a Senior-level implementation of the technical test usi
 
 - **Backend:** Django 5 + Django REST Framework + **drf-spectacular (OpenAPI/Swagger)**
 - **Frontend:** React SPA (Vite) + **MUI Core** (no license-key modules)
-- **Database:** SQLite (default)
+- **Database:** PostgreSQL (via Docker or environment variables)
 - **Docker:** docker compose
 
 ## Key Requirements Covered
@@ -22,23 +22,37 @@ This repository contains a Senior-level implementation of the technical test usi
 
 ## API Documentation (Swagger)
 
-- OpenAPI Schema: `http://localhost:8000/v1/schema/`
-- Swagger UI: `http://localhost:8000/v1/docs/`
-- Redoc: `http://localhost:8000/v1/redoc/`
+- OpenAPI Schema: `http://localhost:8001/v1/schema/`
+- Swagger UI: `http://localhost:8001/v1/docs/`
+- Redoc: `http://localhost:8001/v1/redoc/`
 
 ## Running with Docker (recommended)
 
 ```bash
+./scripts/ensure-env.sh
 docker compose up --build
 ```
 
 - Frontend: `http://localhost:5173`
-- Backend API: `http://localhost:8000/v1/`
-- Admin: `http://localhost:8000/admin/`
+- Backend API: `http://localhost:8001/v1/`
+- Admin: `http://localhost:8001/admin/`
+
+Database environment variables (set in `.env`; `.env.example` provides defaults):
+
+```bash
+POSTGRES_DB=tu_credito
+POSTGRES_USER=tu_credito
+POSTGRES_PASSWORD=tu_credito
+POSTGRES_HOST=db
+POSTGRES_PORT=5432
+```
 
 A default admin user is automatically created:
 - Username: `admin`
 - Password: `admin12345`
+
+For running the backend outside Docker, `./scripts/ensure-env.sh` also seeds
+`backend/.env` from `backend/.env.example` so Postgres settings are available.
 
 ## Running locally without Docker
 
@@ -55,7 +69,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 python manage.py migrate
 python manage.py createsuperuser
-python manage.py runserver 8000
+python manage.py runserver 8001
 ```
 
 ### Frontend
@@ -87,9 +101,9 @@ pytest
 
 ## API Documentation (Swagger)
 
-- OpenAPI Schema: `http://localhost:8000/v1/schema/`
-- Swagger UI: `http://localhost:8000/v1/docs/`
-- ReDoc: `http://localhost:8000/v1/redoc/`
+- OpenAPI Schema: `http://localhost:8001/v1/schema/`
+- Swagger UI: `http://localhost:8001/v1/docs/`
+- ReDoc: `http://localhost:8001/v1/redoc/`
 
 ## Main API Routes
 
@@ -112,4 +126,3 @@ The React SPA implements:
 - Loading states for list fetch + form submits
 - Error handling (alerts/snackbars)
 - Async delete (no full-page reload)
-
