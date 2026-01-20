@@ -15,14 +15,16 @@ export function buildFilterParams(
     const fieldConfig = config[field]
     if (!fieldConfig || value === undefined || value === null || value === '') return
 
+    const paramName = fieldConfig.param ?? field
+
     if (fieldConfig.type === 'enum') {
       const valuesArray = Array.isArray(value) ? value : [value]
       if (valuesArray.length === 0) return
-      params[fieldConfig.param ?? `${field}__in`] = valuesArray.join(',')
+      params[paramName] = valuesArray.join(',')
       return
     }
 
-    params[fieldConfig.param ?? `${field}__icontains`] = String(value)
+    params[paramName] = String(value)
   })
 
   return params

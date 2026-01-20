@@ -51,58 +51,58 @@ export type ListParams = {
 }
 
 export async function listBanks(params?: ListParams): Promise<Paginated<Bank>> {
-  const res = await http.get('/banks/', { params })
+  const res = await http.get('banks/', { params })
   return res.data
 }
 
 export async function createBank(payload: Omit<Bank, 'id'>): Promise<Bank> {
-  const res = await http.post('/banks/', payload)
+  const res = await http.post('banks/', payload)
   return res.data
 }
 
 export async function updateBank(id: number, payload: Omit<Bank, 'id'>): Promise<Bank> {
-  const res = await http.put(`/banks/${id}/`, payload)
+  const res = await http.put(`banks/${id}/`, payload)
   return res.data
 }
 
 export async function deleteBank(id: number): Promise<void> {
-  await http.delete(`/banks/${id}/`)
+  await http.delete(`banks/${id}/`)
 }
 
 export async function listClients(params?: ListParams): Promise<Paginated<Client>> {
-  const res = await http.get('/clients/', { params })
+  const res = await http.get('clients/', { params })
   return res.data
 }
 
 export async function createClient(payload: Omit<Client, 'id' | 'bank_name'>): Promise<Client> {
-  const res = await http.post('/clients/', payload)
+  const res = await http.post('clients/', payload)
   return res.data
 }
 
 export async function updateClient(id: number, payload: Omit<Client, 'id' | 'bank_name'>): Promise<Client> {
-  const res = await http.put(`/clients/${id}/`, payload)
+  const res = await http.put(`clients/${id}/`, payload)
   return res.data
 }
 
 export async function deleteClient(id: number): Promise<void> {
-  await http.delete(`/clients/${id}/`)
+  await http.delete(`clients/${id}/`)
 }
 
 export async function listCredits(params?: ListParams): Promise<Paginated<Credit>> {
-  const res = await http.get('/credits/', { params })
+  const res = await http.get('credits/', { params })
   return res.data
 }
 
 export async function createCredit(payload: Omit<Credit, 'id' | 'created_at' | 'bank_name' | 'client_full_name'>): Promise<Credit> {
-  const res = await http.post('/credits/', payload)
+  const res = await http.post('credits/', payload)
   return res.data
 }
 
 export async function updateCredit(id: number, payload: Omit<Credit, 'id' | 'created_at' | 'bank_name' | 'client_full_name'>): Promise<Credit> {
-  const res = await http.put(`/credits/${id}/`, payload)
+  const res = await http.put(`credits/${id}/`, payload)
   return res.data
 }
 
 export async function deleteCredit(id: number): Promise<void> {
-  await http.delete(`/credits/${id}/`)
+  await http.delete(`credits/${id}/`)
 }

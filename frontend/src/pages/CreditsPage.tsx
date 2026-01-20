@@ -469,7 +469,7 @@ export default function CreditsPage() {
           setSortModel(model)
           setPaginationModel((prev) => ({ ...prev, page: 0 }))
         }}
-        pageSizeOptions={[10, 25, 50]}
+        pageSizeOptions={[1, 10, 25, 50]}
         loading={loading}
         disableColumnFilter
         disableColumnMenu

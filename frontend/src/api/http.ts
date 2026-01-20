@@ -1,8 +1,13 @@
 import axios, { AxiosError, AxiosRequestConfig } from 'axios'
 
-const API_BASE_URL =
-  (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000') +
-  import.meta.env.VITE_API_PREFIX
+const RAW_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+const RAW_PREFIX = import.meta.env.VITE_API_PREFIX
+const DEFAULT_PREFIX = 'v1'
+const normalizedBase = RAW_BASE_URL.endsWith('/') ? RAW_BASE_URL : `${RAW_BASE_URL}/`
+const normalizedPrefix = RAW_PREFIX ? RAW_PREFIX.replace(/^\/|\/$/g, '') : DEFAULT_PREFIX
+const baseHasPrefix =
+  normalizedPrefix.length > 0 && normalizedBase.endsWith(`${normalizedPrefix}/`)
+const API_BASE_URL = `${normalizedBase}${baseHasPrefix ? '' : `${normalizedPrefix}/`}`
 
 export const http = axios.create({
   baseURL: API_BASE_URL,
@@ -39,7 +44,7 @@ async function refreshAccessToken(): Promise<string | null> {
 
   if (!refreshPromise) {
     refreshPromise = refreshHttp
-      .post('/auth/token/refresh/', { refresh: refreshToken })
+      .post('auth/token/refresh/', { refresh: refreshToken })
       .then((res) => {
         const newAccess = res.data?.access
         if (newAccess) {
@@ -76,7 +81,7 @@ http.interceptors.response.use(
 )
 
 export async function login(username: string, password: string): Promise<void> {
-  const res = await http.post('/auth/token/', { username, password })
+  const res = await http.post('auth/token/', { username, password })
   localStorage.setItem('access_token', res.data.access)
   localStorage.setItem('refresh_token', res.data.refresh)
 }
