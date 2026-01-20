@@ -1,6 +1,6 @@
 import axios, { AxiosError, AxiosRequestConfig } from 'axios'
 
-const RAW_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+const RAW_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001'
 const RAW_PREFIX = import.meta.env.VITE_API_PREFIX
 const DEFAULT_PREFIX = 'v1'
 const normalizedBase = RAW_BASE_URL.endsWith('/') ? RAW_BASE_URL : `${RAW_BASE_URL}/`
