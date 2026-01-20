@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Box,
   Button,
@@ -10,11 +10,6 @@ import {
   IconButton,
   Snackbar,
   Alert,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
   TextField,
   Select,
   MenuItem,
@@ -25,6 +20,12 @@ import {
 import DeleteIcon from '@mui/icons-material/Delete'
 import EditIcon from '@mui/icons-material/Edit'
 import {
+  DataGrid,
+  GridColDef,
+  GridRowSelectionModel,
+  GridSortModel,
+} from '@mui/x-data-grid'
+import {
   Client,
   Bank,
   listClients,
@@ -33,6 +34,12 @@ import {
   deleteClient,
   listBanks,
 } from '../api/resources'
+import {
+  buildFilterParams,
+  buildRequestKey,
+  buildSortParam,
+} from '../components/serverDataGrid'
+import { DataGridFilterHeader } from '../components/DataGridFilterHeader'
 
 type Snack = { type: 'success' | 'error'; message: string }
 
@@ -47,6 +54,17 @@ export default function ClientsPage() {
   const [saving, setSaving] = useState(false)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [snack, setSnack] = useState<Snack | null>(null)
+  const [selectionModel, setSelectionModel] = useState<GridRowSelectionModel>([])
+  const [filters, setFilters] = useState({
+    full_name: '',
+    email: '',
+    person_type: [] as string[],
+    bank_name: '',
+  })
+  const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 })
+  const [sortModel, setSortModel] = useState<GridSortModel>([])
+  const [rowCount, setRowCount] = useState(0)
+  const lastRequestKey = useRef<string>('')
 
   const emptyForm = useMemo(
     () => ({
@@ -65,23 +83,59 @@ export default function ClientsPage() {
 
   const [form, setForm] = useState(emptyForm)
 
-  async function refresh() {
-    setLoading(true)
-    setError(null)
-    try {
-      const [clientsRes, banksRes] = await Promise.all([listClients(), listBanks()])
-      setItems(clientsRes.results)
-      setBanks(banksRes.results)
-    } catch (e: any) {
-      setError(e?.message || 'Failed to load clients.')
-    } finally {
-      setLoading(false)
-    }
-  }
+  const requestParams = useMemo(
+    () => ({
+      page: paginationModel.page + 1,
+      page_size: paginationModel.pageSize,
+      ordering: buildSortParam(sortModel),
+      ...buildFilterParams(filters, {
+        full_name: { type: 'text' },
+        email: { type: 'text' },
+        person_type: { type: 'enum', param: 'person_type' },
+        bank_name: { type: 'text', param: 'bank_name' },
+      }),
+    }),
+    [filters, paginationModel.page, paginationModel.pageSize, sortModel],
+  )
+  const requestKey = useMemo(() => buildRequestKey(requestParams), [requestParams])
+
+  const refresh = useCallback(
+    async (force = false) => {
+      if (!force && requestKey === lastRequestKey.current) return
+      lastRequestKey.current = requestKey
+      setLoading(true)
+      setError(null)
+      try {
+        const clientsRes = await listClients(requestParams)
+        setItems(clientsRes.results)
+        setRowCount(clientsRes.count)
+      } catch (e: any) {
+        setError(e?.message || 'Failed to load clients.')
+      } finally {
+        setLoading(false)
+      }
+    },
+    [requestKey, requestParams],
+  )
 
   useEffect(() => {
     refresh()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refresh])
+
+  useEffect(() => {
+    let active = true
+    async function loadBanks() {
+      try {
+        const banksRes = await listBanks()
+        if (active) setBanks(banksRes.results)
+      } catch (e) {
+        if (active) setSnack({ type: 'error', message: 'Failed to load banks.' })
+      }
+    }
+    loadBanks()
+    return () => {
+      active = false
+    }
   }, [])
 
   function openCreate() {
@@ -200,7 +254,7 @@ export default function ClientsPage() {
         setSnack({ type: 'success', message: 'Client created.' })
       }
       setDialogOpen(false)
-      await refresh()
+      await refresh(true)
     } catch (e: any) {
       const resp = e?.response
       if (resp?.status === 400) {
@@ -224,22 +278,135 @@ export default function ClientsPage() {
     }
   }
 
-  if (loading) {
-    return (
-      <Box display="flex" alignItems="center" gap={2}>
-        <CircularProgress />
-        <Typography>Loading clients...</Typography>
-      </Box>
-    )
+  async function deleteSelected() {
+    if (selectionModel.length === 0) return
+    if (!confirm(`Delete ${selectionModel.length} selected clients?`)) return
+    const ids = selectionModel.map((id) => Number(id))
+    const results = await Promise.allSettled(ids.map((id) => deleteClient(id)))
+    const failed = results.filter((res) => res.status === 'rejected')
+    if (failed.length) {
+      setSnack({
+        type: 'error',
+        message: `${failed.length} of ${ids.length} clients failed to delete.`,
+      })
+    } else {
+      setSnack({ type: 'success', message: 'Selected clients deleted.' })
+    }
+    setItems((prev) => prev.filter((x) => !ids.includes(x.id)))
+    setSelectionModel([])
   }
+
+  const updateFilter = useCallback((key: keyof typeof filters, value: string | string[]) => {
+    setFilters((prev) => ({ ...prev, [key]: value }))
+    setPaginationModel((prev) => ({ ...prev, page: 0 }))
+  }, [])
+
+  const columns = useMemo<GridColDef[]>(
+    () => [
+      { field: 'id', headerName: 'ID', width: 80 },
+      {
+        field: 'full_name',
+        headerName: 'Full Name',
+        flex: 1,
+        minWidth: 180,
+        renderHeader: () => (
+          <DataGridFilterHeader
+            label="Full Name"
+            value={filters.full_name}
+            onChange={(value) => updateFilter('full_name', value)}
+          />
+        ),
+      },
+      {
+        field: 'email',
+        headerName: 'Email',
+        flex: 1,
+        minWidth: 200,
+        renderHeader: () => (
+          <DataGridFilterHeader
+            label="Email"
+            value={filters.email}
+            onChange={(value) => updateFilter('email', value)}
+          />
+        ),
+      },
+      {
+        field: 'person_type',
+        headerName: 'Person Type',
+        flex: 1,
+        minWidth: 160,
+        renderHeader: () => (
+          <DataGridFilterHeader
+            label="Person Type"
+            type="enum"
+            value={filters.person_type}
+            options={[
+              { value: 'NATURAL', label: 'Natural' },
+              { value: 'LEGAL_ENTITY', label: 'Legal Entity' },
+            ]}
+            onChange={(value) => updateFilter('person_type', value)}
+          />
+        ),
+      },
+      {
+        field: 'bank_name',
+        headerName: 'Bank',
+        flex: 1,
+        minWidth: 160,
+        valueGetter: (params) => params.row.bank_name || '-',
+        renderHeader: () => (
+          <DataGridFilterHeader
+            label="Bank"
+            value={filters.bank_name}
+            onChange={(value) => updateFilter('bank_name', value)}
+          />
+        ),
+      },
+      {
+        field: 'actions',
+        headerName: 'Actions',
+        sortable: false,
+        width: 120,
+        renderCell: (params) => (
+          <>
+            <IconButton onClick={() => openEdit(params.row)} aria-label="edit">
+              <EditIcon />
+            </IconButton>
+            <IconButton onClick={() => remove(params.row.id)} aria-label="delete">
+              <DeleteIcon />
+            </IconButton>
+          </>
+        ),
+      },
+    ],
+    [
+      filters.bank_name,
+      filters.email,
+      filters.full_name,
+      filters.person_type,
+      openEdit,
+      remove,
+      updateFilter,
+    ],
+  )
 
   return (
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
         <Typography variant="h5">Clients</Typography>
-        <Button variant="contained" onClick={openCreate}>
-          New Client
-        </Button>
+        <Box display="flex" gap={1}>
+          <Button
+            variant="outlined"
+            color="error"
+            disabled={selectionModel.length === 0}
+            onClick={deleteSelected}
+          >
+            Delete Clients
+          </Button>
+          <Button variant="contained" onClick={openCreate}>
+            New Client
+          </Button>
+        </Box>
       </Box>
 
       {error ? (
@@ -248,37 +415,31 @@ export default function ClientsPage() {
         </Alert>
       ) : null}
 
-      <Table size="small">
-        <TableHead>
-          <TableRow>
-            <TableCell>ID</TableCell>
-            <TableCell>Full Name</TableCell>
-            <TableCell>Email</TableCell>
-            <TableCell>Person Type</TableCell>
-            <TableCell>Bank</TableCell>
-            <TableCell align="right">Actions</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {items.map((c) => (
-            <TableRow key={c.id}>
-              <TableCell>{c.id}</TableCell>
-              <TableCell>{c.full_name}</TableCell>
-              <TableCell>{c.email}</TableCell>
-              <TableCell>{c.person_type === 'NATURAL' ? 'Natural' : 'Legal Entity'}</TableCell>
-              <TableCell>{c.bank_name || '-'}</TableCell>
-              <TableCell align="right">
-                <IconButton onClick={() => openEdit(c)} aria-label="edit">
-                  <EditIcon />
-                </IconButton>
-                <IconButton onClick={() => remove(c.id)} aria-label="delete">
-                  <DeleteIcon />
-                </IconButton>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+      <DataGrid
+        autoHeight
+        rows={items}
+        columns={columns}
+        checkboxSelection
+        disableRowSelectionOnClick
+        rowSelectionModel={selectionModel}
+        onRowSelectionModelChange={setSelectionModel}
+        paginationMode="server"
+        sortingMode="server"
+        paginationModel={paginationModel}
+        onPaginationModelChange={setPaginationModel}
+        rowCount={rowCount}
+        sortModel={sortModel}
+        onSortModelChange={(model) => {
+          setSortModel(model)
+          setPaginationModel((prev) => ({ ...prev, page: 0 }))
+        }}
+        pageSizeOptions={[1, 10, 25, 50]}
+        loading={loading}
+        disableColumnFilter
+        disableColumnMenu
+        disableColumnSelector
+        columnHeaderHeight={80}
+      />
 
       <Dialog open={dialogOpen} onClose={closeDialog} fullWidth maxWidth="sm">
         <DialogTitle>{editing ? 'Edit Client' : 'Create Client'}</DialogTitle>

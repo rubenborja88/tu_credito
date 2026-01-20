@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Box,
   Button,
@@ -10,11 +10,6 @@ import {
   IconButton,
   Snackbar,
   Alert,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
   TextField,
   Select,
   MenuItem,
@@ -24,8 +19,20 @@ import {
 } from '@mui/material'
 import DeleteIcon from '@mui/icons-material/Delete'
 import EditIcon from '@mui/icons-material/Edit'
+import {
+  DataGrid,
+  GridColDef,
+  GridRowSelectionModel,
+  GridSortModel,
+} from '@mui/x-data-grid'
 
 import { Bank, createBank, deleteBank, listBanks, updateBank } from '../api/resources'
+import {
+  buildFilterParams,
+  buildRequestKey,
+  buildSortParam,
+} from '../components/serverDataGrid'
+import { DataGridFilterHeader } from '../components/DataGridFilterHeader'
 
 type FormState = {
   name: string
@@ -42,6 +49,12 @@ export default function BanksPage() {
   const [editing, setEditing] = useState<Bank | null>(null)
   const [saving, setSaving] = useState(false)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const [selectionModel, setSelectionModel] = useState<GridRowSelectionModel>([])
+  const [filters, setFilters] = useState({ name: '', bank_type: [] as string[], address: '' })
+  const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 })
+  const [sortModel, setSortModel] = useState<GridSortModel>([])
+  const [rowCount, setRowCount] = useState(0)
+  const lastRequestKey = useRef<string>('')
 
   const [snack, setSnack] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
@@ -51,22 +64,43 @@ export default function BanksPage() {
   )
   const [form, setForm] = useState<FormState>(initialForm)
 
-  async function refresh() {
-    setLoading(true)
-    setError(null)
-    try {
-      const data = await listBanks()
-      setRows(data.results)
-    } catch (e: any) {
-      setError(e?.message || 'Failed to load banks.')
-    } finally {
-      setLoading(false)
-    }
-  }
+  const requestParams = useMemo(
+    () => ({
+      page: paginationModel.page + 1,
+      page_size: paginationModel.pageSize,
+      ordering: buildSortParam(sortModel),
+      ...buildFilterParams(filters, {
+        name: { type: 'text' },
+        address: { type: 'text' },
+        bank_type: { type: 'enum', param: 'bank_type' },
+      }),
+    }),
+    [filters, paginationModel.page, paginationModel.pageSize, sortModel],
+  )
+  const requestKey = useMemo(() => buildRequestKey(requestParams), [requestParams])
+
+  const refresh = useCallback(
+    async (force = false) => {
+      if (!force && requestKey === lastRequestKey.current) return
+      lastRequestKey.current = requestKey
+      setLoading(true)
+      setError(null)
+      try {
+        const data = await listBanks(requestParams)
+        setRows(data.results)
+        setRowCount(data.count)
+      } catch (e: any) {
+        setError(e?.message || 'Failed to load banks.')
+      } finally {
+        setLoading(false)
+      }
+    },
+    [requestKey, requestParams],
+  )
 
   useEffect(() => {
     refresh()
-  }, [])
+  }, [refresh])
 
   function openCreate() {
     setEditing(null)
@@ -133,7 +167,7 @@ export default function BanksPage() {
         setSnack({ type: 'success', message: 'Bank created.' })
       }
       setOpen(false)
-      await refresh()
+      await refresh(true)
     } catch (e: any) {
       mapValidationErrors(e)
       setSnack({ type: 'error', message: 'Could not save bank. Please fix the errors and try again.' })
@@ -153,52 +187,144 @@ export default function BanksPage() {
     }
   }
 
+  async function deleteSelected() {
+    if (selectionModel.length === 0) return
+    if (!confirm(`Delete ${selectionModel.length} selected banks?`)) return
+    const ids = selectionModel.map((id) => Number(id))
+    const results = await Promise.allSettled(ids.map((id) => deleteBank(id)))
+    const failed = results.filter((res) => res.status === 'rejected')
+    if (failed.length) {
+      setSnack({
+        type: 'error',
+        message: `${failed.length} of ${ids.length} banks failed to delete.`,
+      })
+    } else {
+      setSnack({ type: 'success', message: 'Selected banks deleted.' })
+    }
+    setRows((prev) => prev.filter((r) => !ids.includes(r.id)))
+    setSelectionModel([])
+  }
+
+  const updateFilter = useCallback((key: keyof typeof filters, value: string | string[]) => {
+    setFilters((prev) => ({ ...prev, [key]: value }))
+    setPaginationModel((prev) => ({ ...prev, page: 0 }))
+  }, [])
+
+  const columns = useMemo<GridColDef[]>(
+    () => [
+      { field: 'id', headerName: 'ID', width: 80, sortable: true },
+      {
+        field: 'name',
+        headerName: 'Name',
+        flex: 1,
+        minWidth: 180,
+        renderHeader: () => (
+          <DataGridFilterHeader
+            label="Name"
+            value={filters.name}
+            onChange={(value) => updateFilter('name', value)}
+          />
+        ),
+      },
+      {
+        field: 'bank_type',
+        headerName: 'Type',
+        flex: 1,
+        minWidth: 160,
+        renderHeader: () => (
+          <DataGridFilterHeader
+            label="Type"
+            type="enum"
+            value={filters.bank_type}
+            options={[
+              { value: 'PRIVATE', label: 'Private' },
+              { value: 'GOVERNMENT', label: 'Government' },
+            ]}
+            onChange={(value) => updateFilter('bank_type', value)}
+          />
+        ),
+      },
+      {
+        field: 'address',
+        headerName: 'Address',
+        flex: 1,
+        minWidth: 200,
+        renderHeader: () => (
+          <DataGridFilterHeader
+            label="Address"
+            value={filters.address}
+            onChange={(value) => updateFilter('address', value)}
+          />
+        ),
+      },
+      {
+        field: 'actions',
+        headerName: 'Actions',
+        sortable: false,
+        width: 120,
+        renderCell: (params) => (
+          <>
+            <IconButton aria-label="edit" onClick={() => openEdit(params.row)}>
+              <EditIcon />
+            </IconButton>
+            <IconButton aria-label="delete" onClick={() => handleDelete(params.row.id)}>
+              <DeleteIcon />
+            </IconButton>
+          </>
+        ),
+      },
+    ],
+    [filters.address, filters.bank_type, filters.name, handleDelete, openEdit, updateFilter],
+  )
+
+  function handleSortModelChange(model: GridSortModel) {
+    setSortModel(model)
+    setPaginationModel((prev) => ({ ...prev, page: 0 }))
+  }
+
   return (
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
         <Typography variant="h5">Banks</Typography>
-        <Button variant="contained" onClick={openCreate}>
-          New Bank
-        </Button>
+        <Box display="flex" gap={1}>
+          <Button
+            variant="outlined"
+            color="error"
+            disabled={selectionModel.length === 0}
+            onClick={deleteSelected}
+          >
+            Delete Banks
+          </Button>
+          <Button variant="contained" onClick={openCreate}>
+            New Bank
+          </Button>
+        </Box>
       </Box>
 
-      {loading ? (
-        <Box display="flex" justifyContent="center" mt={4}>
-          <CircularProgress />
-        </Box>
-      ) : error ? (
-        <Alert severity="error">{error}</Alert>
-      ) : (
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>ID</TableCell>
-              <TableCell>Name</TableCell>
-              <TableCell>Type</TableCell>
-              <TableCell>Address</TableCell>
-              <TableCell align="right">Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {rows.map((r) => (
-              <TableRow key={r.id}>
-                <TableCell>{r.id}</TableCell>
-                <TableCell>{r.name}</TableCell>
-                <TableCell>{r.bank_type}</TableCell>
-                <TableCell>{r.address}</TableCell>
-                <TableCell align="right">
-                  <IconButton aria-label="edit" onClick={() => openEdit(r)}>
-                    <EditIcon />
-                  </IconButton>
-                  <IconButton aria-label="delete" onClick={() => handleDelete(r.id)}>
-                    <DeleteIcon />
-                  </IconButton>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
+      {error ? <Alert severity="error">{error}</Alert> : null}
+
+      <DataGrid
+        autoHeight
+        rows={rows}
+        columns={columns}
+        checkboxSelection
+        disableRowSelectionOnClick
+        rowSelectionModel={selectionModel}
+        onRowSelectionModelChange={setSelectionModel}
+        paginationMode="server"
+        sortingMode="server"
+        paginationModel={paginationModel}
+        onPaginationModelChange={setPaginationModel}
+        rowCount={rowCount}
+        sortModel={sortModel}
+        onSortModelChange={handleSortModelChange}
+        pageSizeOptions={[10, 25, 50]}
+        loading={loading}
+        disableColumnFilter
+        disableColumnMenu
+        disableColumnSelector
+        columnHeaderHeight={80}
+      />
 
       <Dialog open={open} onClose={closeDialog} maxWidth="sm" fullWidth>
         <DialogTitle>{editing ? 'Edit Bank' : 'New Bank'}</DialogTitle>

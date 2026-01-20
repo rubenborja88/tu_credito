@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Alert,
   Box,
@@ -14,16 +14,17 @@ import {
   MenuItem,
   Select,
   Snackbar,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
   TextField,
   Typography,
 } from '@mui/material'
 import DeleteIcon from '@mui/icons-material/Delete'
 import EditIcon from '@mui/icons-material/Edit'
+import {
+  DataGrid,
+  GridColDef,
+  GridRowSelectionModel,
+  GridSortModel,
+} from '@mui/x-data-grid'
 
 import {
   createCredit,
@@ -36,6 +37,12 @@ import {
   type Client,
   type Credit,
 } from '../api/resources'
+import {
+  buildFilterParams,
+  buildRequestKey,
+  buildSortParam,
+} from '../components/serverDataGrid'
+import { DataGridFilterHeader } from '../components/DataGridFilterHeader'
 
 type Snack = { type: 'success' | 'error'; message: string }
 
@@ -59,6 +66,20 @@ export default function CreditsPage() {
   const [editing, setEditing] = useState<Credit | null>(null)
   const [snack, setSnack] = useState<Snack | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const [selectionModel, setSelectionModel] = useState<GridRowSelectionModel>([])
+  const [filters, setFilters] = useState({
+    client_full_name: '',
+    description: '',
+    bank_name: '',
+    credit_type: [] as string[],
+    min_payment: '',
+    max_payment: '',
+    term_months: '',
+  })
+  const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 })
+  const [sortModel, setSortModel] = useState<GridSortModel>([])
+  const [rowCount, setRowCount] = useState(0)
+  const lastRequestKey = useRef<string>('')
 
   const emptyForm: FormState = useMemo(
     () => ({
@@ -75,23 +96,63 @@ export default function CreditsPage() {
 
   const [form, setForm] = useState<FormState>(emptyForm)
 
-  async function refresh() {
-    setLoading(true)
-    try {
-      const [cRes, bRes, clRes] = await Promise.all([listCredits(), listBanks(), listClients()])
-      setCredits(cRes.results)
-      setBanks(bRes.results)
-      setClients(clRes.results)
-    } catch (e: any) {
-      setSnack({ type: 'error', message: e?.message || 'Failed to load credits.' })
-    } finally {
-      setLoading(false)
-    }
-  }
+  const requestParams = useMemo(
+    () => ({
+      page: paginationModel.page + 1,
+      page_size: paginationModel.pageSize,
+      ordering: buildSortParam(sortModel),
+      ...buildFilterParams(filters, {
+        client_full_name: { type: 'text', param: 'client_full_name' },
+        description: { type: 'text' },
+        bank_name: { type: 'text', param: 'bank_name' },
+        credit_type: { type: 'enum', param: 'credit_type' },
+        min_payment: { type: 'number', param: 'min_payment' },
+        max_payment: { type: 'number', param: 'max_payment' },
+        term_months: { type: 'number', param: 'term_months' },
+      }),
+    }),
+    [filters, paginationModel.page, paginationModel.pageSize, sortModel],
+  )
+  const requestKey = useMemo(() => buildRequestKey(requestParams), [requestParams])
+
+  const refresh = useCallback(
+    async (force = false) => {
+      if (!force && requestKey === lastRequestKey.current) return
+      lastRequestKey.current = requestKey
+      setLoading(true)
+      try {
+        const cRes = await listCredits(requestParams)
+        setCredits(cRes.results)
+        setRowCount(cRes.count)
+      } catch (e: any) {
+        setSnack({ type: 'error', message: e?.message || 'Failed to load credits.' })
+      } finally {
+        setLoading(false)
+      }
+    },
+    [requestKey, requestParams],
+  )
 
   useEffect(() => {
     refresh()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refresh])
+
+  useEffect(() => {
+    let active = true
+    async function loadReferenceData() {
+      try {
+        const [banksRes, clientsRes] = await Promise.all([listBanks(), listClients()])
+        if (!active) return
+        setBanks(banksRes.results)
+        setClients(clientsRes.results)
+      } catch (e) {
+        if (active) setSnack({ type: 'error', message: 'Failed to load reference data.' })
+      }
+    }
+    loadReferenceData()
+    return () => {
+      active = false
+    }
   }, [])
 
   function openCreate() {
@@ -190,7 +251,7 @@ export default function CreditsPage() {
 
       setSnack({ type: 'success', message: editing ? 'Credit updated.' : 'Credit created.' })
       setDialogOpen(false)
-      await refresh()
+      await refresh(true)
     } catch (e: any) {
       const data = e?.response?.data
       const mapped = mapFieldErrors(data)
@@ -212,58 +273,209 @@ export default function CreditsPage() {
     }
   }
 
+  async function deleteSelected() {
+    if (selectionModel.length === 0) return
+    if (!confirm(`Delete ${selectionModel.length} selected credits?`)) return
+    const ids = selectionModel.map((id) => Number(id))
+    const results = await Promise.allSettled(ids.map((id) => deleteCredit(id)))
+    const failed = results.filter((res) => res.status === 'rejected')
+    if (failed.length) {
+      setSnack({
+        type: 'error',
+        message: `${failed.length} of ${ids.length} credits failed to delete.`,
+      })
+    } else {
+      setSnack({ type: 'success', message: 'Selected credits deleted.' })
+    }
+    setCredits((prev) => prev.filter((x) => !ids.includes(x.id)))
+    setSelectionModel([])
+  }
+
+  const updateFilter = useCallback((key: keyof typeof filters, value: string | string[]) => {
+    setFilters((prev) => ({ ...prev, [key]: value }))
+    setPaginationModel((prev) => ({ ...prev, page: 0 }))
+  }, [])
+
+  const columns = useMemo<GridColDef[]>(
+    () => [
+      { field: 'id', headerName: 'ID', width: 80 },
+      {
+        field: 'client_full_name',
+        headerName: 'Client',
+        flex: 1,
+        minWidth: 180,
+        valueGetter: (params) => params.row.client_full_name || params.row.client,
+        renderHeader: () => (
+          <DataGridFilterHeader
+            label="Client"
+            value={filters.client_full_name}
+            onChange={(value) => updateFilter('client_full_name', value)}
+          />
+        ),
+      },
+      {
+        field: 'description',
+        headerName: 'Description',
+        flex: 1,
+        minWidth: 200,
+        renderHeader: () => (
+          <DataGridFilterHeader
+            label="Description"
+            value={filters.description}
+            onChange={(value) => updateFilter('description', value)}
+          />
+        ),
+      },
+      {
+        field: 'bank_name',
+        headerName: 'Bank',
+        flex: 1,
+        minWidth: 160,
+        valueGetter: (params) => params.row.bank_name || params.row.bank,
+        renderHeader: () => (
+          <DataGridFilterHeader
+            label="Bank"
+            value={filters.bank_name}
+            onChange={(value) => updateFilter('bank_name', value)}
+          />
+        ),
+      },
+      {
+        field: 'credit_type',
+        headerName: 'Type',
+        flex: 1,
+        minWidth: 160,
+        renderHeader: () => (
+          <DataGridFilterHeader
+            label="Type"
+            type="enum"
+            value={filters.credit_type}
+            options={[
+              { value: 'AUTO', label: 'Automotive' },
+              { value: 'MORTGAGE', label: 'Mortgage' },
+              { value: 'COMMERCIAL', label: 'Commercial' },
+            ]}
+            onChange={(value) => updateFilter('credit_type', value)}
+          />
+        ),
+      },
+      {
+        field: 'min_payment',
+        headerName: 'Min',
+        flex: 1,
+        minWidth: 120,
+        renderHeader: () => (
+          <DataGridFilterHeader
+            label="Min"
+            type="number"
+            value={filters.min_payment}
+            onChange={(value) => updateFilter('min_payment', value)}
+          />
+        ),
+      },
+      {
+        field: 'max_payment',
+        headerName: 'Max',
+        flex: 1,
+        minWidth: 120,
+        renderHeader: () => (
+          <DataGridFilterHeader
+            label="Max"
+            type="number"
+            value={filters.max_payment}
+            onChange={(value) => updateFilter('max_payment', value)}
+          />
+        ),
+      },
+      {
+        field: 'term_months',
+        headerName: 'Term (months)',
+        flex: 1,
+        minWidth: 140,
+        renderHeader: () => (
+          <DataGridFilterHeader
+            label="Term (months)"
+            type="number"
+            value={filters.term_months}
+            onChange={(value) => updateFilter('term_months', value)}
+          />
+        ),
+      },
+      {
+        field: 'actions',
+        headerName: 'Actions',
+        sortable: false,
+        width: 120,
+        renderCell: (params) => (
+          <>
+            <IconButton onClick={() => openEdit(params.row)} aria-label="Edit">
+              <EditIcon />
+            </IconButton>
+            <IconButton onClick={() => onDelete(params.row.id)} aria-label="Delete">
+              <DeleteIcon />
+            </IconButton>
+          </>
+        ),
+      },
+    ],
+    [
+      filters.bank_name,
+      filters.client_full_name,
+      filters.credit_type,
+      filters.description,
+      filters.max_payment,
+      filters.min_payment,
+      filters.term_months,
+      onDelete,
+      openEdit,
+      updateFilter,
+    ],
+  )
+
   return (
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
         <Typography variant="h5">Credits</Typography>
-        <Button variant="contained" onClick={openCreate}>
-          New Credit
-        </Button>
+        <Box display="flex" gap={1}>
+          <Button
+            variant="outlined"
+            color="error"
+            disabled={selectionModel.length === 0}
+            onClick={deleteSelected}
+          >
+            Delete Credits
+          </Button>
+          <Button variant="contained" onClick={openCreate}>
+            New Credit
+          </Button>
+        </Box>
       </Box>
 
-      {loading ? (
-        <Box display="flex" justifyContent="center" py={4}>
-          <CircularProgress />
-        </Box>
-      ) : (
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>ID</TableCell>
-              <TableCell>Client</TableCell>
-              <TableCell>Description</TableCell>
-              <TableCell>Bank</TableCell>
-              <TableCell>Type</TableCell>
-              <TableCell>Min</TableCell>
-              <TableCell>Max</TableCell>
-              <TableCell>Term (months)</TableCell>
-              <TableCell align="right">Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {credits.map((r) => (
-              <TableRow key={r.id}>
-                <TableCell>{r.id}</TableCell>
-                <TableCell>{r.client_full_name || r.client}</TableCell>
-                <TableCell>{r.description}</TableCell>
-                <TableCell>{r.bank_name || r.bank}</TableCell>
-                <TableCell>{r.credit_type}</TableCell>
-                <TableCell>{r.min_payment}</TableCell>
-                <TableCell>{r.max_payment}</TableCell>
-                <TableCell>{r.term_months}</TableCell>
-                <TableCell align="right">
-                  <IconButton onClick={() => openEdit(r)} aria-label="Edit">
-                    <EditIcon />
-                  </IconButton>
-                  <IconButton onClick={() => onDelete(r.id)} aria-label="Delete">
-                    <DeleteIcon />
-                  </IconButton>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
+      <DataGrid
+        autoHeight
+        rows={credits}
+        columns={columns}
+        checkboxSelection
+        disableRowSelectionOnClick
+        rowSelectionModel={selectionModel}
+        onRowSelectionModelChange={setSelectionModel}
+        paginationMode="server"
+        sortingMode="server"
+        paginationModel={paginationModel}
+        onPaginationModelChange={setPaginationModel}
+        rowCount={rowCount}
+        sortModel={sortModel}
+        onSortModelChange={(model) => {
+          setSortModel(model)
+          setPaginationModel((prev) => ({ ...prev, page: 0 }))
+        }}
+        pageSizeOptions={[10, 25, 50]}
+        loading={loading}
+        disableColumnFilter
+        disableColumnMenu
+        disableColumnSelector
+        columnHeaderHeight={80}
+      />
 
       <Dialog open={dialogOpen} onClose={closeDialog} fullWidth maxWidth="sm">
         <DialogTitle>{editing ? 'Edit Credit' : 'Create Credit'}</DialogTitle>

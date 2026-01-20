@@ -42,8 +42,16 @@ export type Credit = {
   credit_type: 'AUTO' | 'MORTGAGE' | 'COMMERCIAL'
 }
 
-export async function listBanks(): Promise<Paginated<Bank>> {
-  const res = await http.get('/banks/')
+export type ListParams = {
+  page?: number
+  page_size?: number
+  search?: string
+  ordering?: string
+  [key: string]: string | number | undefined
+}
+
+export async function listBanks(params?: ListParams): Promise<Paginated<Bank>> {
+  const res = await http.get('/banks/', { params })
   return res.data
 }
 
@@ -61,8 +69,8 @@ export async function deleteBank(id: number): Promise<void> {
   await http.delete(`/banks/${id}/`)
 }
 
-export async function listClients(): Promise<Paginated<Client>> {
-  const res = await http.get('/clients/')
+export async function listClients(params?: ListParams): Promise<Paginated<Client>> {
+  const res = await http.get('/clients/', { params })
   return res.data
 }
 
@@ -80,8 +88,8 @@ export async function deleteClient(id: number): Promise<void> {
   await http.delete(`/clients/${id}/`)
 }
 
-export async function listCredits(): Promise<Paginated<Credit>> {
-  const res = await http.get('/credits/')
+export async function listCredits(params?: ListParams): Promise<Paginated<Credit>> {
+  const res = await http.get('/credits/', { params })
   return res.data
 }
 
