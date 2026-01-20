@@ -57,7 +57,7 @@ export default function ClientsPage() {
       address: '',
       email: '',
       phone: '',
-      person_type: 'NATURAL' as const,
+      person_type: 'NATURAL' as 'NATURAL' | 'LEGAL_ENTITY',
       bank: null as number | null,
     }),
     [],
@@ -396,7 +396,7 @@ export default function ClientsPage() {
         onClose={() => setSnack(null)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
-        {snack ? <Alert severity={snack.type}>{snack.message}</Alert> : null}
+        {snack ? <Alert severity={snack.type}>{snack.message}</Alert> : <></>}
       </Snackbar>
     </Box>
   )
