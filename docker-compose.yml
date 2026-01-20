@@ -1,31 +1,40 @@
 services:
+  db:
+    image: postgres:16-alpine
+    container_name: tu_credito_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT}:5432"
+
   backend:
     build: ./backend
+    container_name: tu_credito_backend
+    command: python manage.py runserver 0.0.0.0:8000
     ports:
-      - "8001:8001"
+      - "8001:8000"
     env_file:
-      - .env.example
-      - .env
+      - ./backend/.env
     depends_on:
       - db
+    restart: unless-stopped
 
   frontend:
     build: ./frontend
+    container_name: tu_credito_frontend
+    command: npm run dev -- --host
     ports:
       - "5173:5173"
     environment:
-      VITE_API_BASE_URL: "http://localhost:8001/v1"
+      VITE_API_BASE_URL: "http://localhost:8001"
     depends_on:
-      backend:
-        condition: service_started
-
-  db:
-    image: postgres:16-alpine
-    env_file:
-      - .env.example
-      - .env
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - backend
+    restart: unless-stopped
 
 volumes:
   postgres_data:
