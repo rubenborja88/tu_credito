@@ -103,7 +103,12 @@ pytest
 
 I used AI for creating frontend components.
 
+### Tests (backend, Docker)
+I wrote tests only for clients.
 
+```bash
+docker compose exec backend pytest
+```
 
 ## API Documentation (Swagger)
 

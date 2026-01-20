@@ -25,7 +25,7 @@ def test_client_string_representation():
 
 @pytest.mark.django_db
 def test_client_serializer_rejects_age_mismatch():
-    bank = Bank.objects.create(name='Mismatch Bank', bank_type=Bank.BankType.PUBLIC)
+    bank = Bank.objects.create(name='Mismatch Bank', bank_type=Bank.BankType.GOVERNMENT)
     dob = date(1988, 12, 11)
 
     serializer = ClientSerializer(

@@ -45,7 +45,7 @@ def test_client_update():
     api = APIClient()
     api.force_authenticate(user=user)
 
-    bank = Bank.objects.create(name='Update Bank', bank_type=Bank.BankType.PUBLIC)
+    bank = Bank.objects.create(name='Update Bank', bank_type=Bank.BankType.GOVERNMENT)
     dob = date(1990, 8, 20)
     client = Client.objects.create(
         full_name='Old Name',
